@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import https from 'node:https';
 import tls from 'node:tls';
 import { Duplex } from 'node:stream';
+import { getEventListeners } from 'node:events';
 import { Sagemcom, encodePassword } from '../lib/router/sagemcom.js';
 
 // Raw HTTP bytes exercise Node's actual response parser without opening a port.
@@ -121,5 +122,48 @@ test('headers demasiado grandes se rechazan sin esperar el cuerpo', async t => {
   const router = new Sagemcom({routerUrl:'https://192.168.0.1',timeoutSeconds:1}, {log:()=>{}});
   t.after(() => router.close());
   t.mock.method(tls, 'connect', () => socketFor(response('200 OK', [`X-Large: ${'x'.repeat(16384)}`]), []));
-  await assert.rejects(router.call('/index.php'), error => error.cause.code === 'HPE_HEADER_OVERFLOW');
+  await assert.rejects(router.call('/index.php'), {name:'RouterError', code:'HPE_HEADER_OVERFLOW'});
+});
+
+test('AbortController cancela una sola vez y retira el listener de abort', async t => {
+  const router = new Sagemcom({routerUrl:'https://192.168.0.1',timeoutSeconds:1}, {log:()=>{}});
+  t.after(() => router.close());
+  const socket = new Duplex({read(){},write(chunk, encoding, callback){callback();}});
+  t.mock.method(tls, 'connect', () => socket);
+  const controller = new AbortController();
+  const pending = router.request('/index.php', {signal:controller.signal});
+  controller.abort();
+  await assert.rejects(pending, {name:'RouterError',code:'ABORT'});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(socket.destroyed, true);
+  assert.equal(router.active.size, 0);
+  assert.equal(getEventListeners(controller.signal, 'abort').length, 0);
+  // Late socket errors from teardown must still have a listener.
+  socket.emit('error', Object.assign(new Error('late abort'), {code:'ABORT_ERR'}));
+});
+
+test('signal ya cancelada no abre conexión; close cancela una request activa', async t => {
+  const router = new Sagemcom({routerUrl:'https://192.168.0.1',timeoutSeconds:1}, {log:()=>{}});
+  t.after(() => router.close());
+  const connect = t.mock.method(tls, 'connect', () => new Duplex({read(){},write(chunk, encoding, callback){callback();}}));
+  await assert.rejects(router.request('/index.php', {signal:AbortSignal.abort()}), {name:'RouterError',code:'ABORT'});
+  assert.equal(connect.mock.callCount(), 0);
+  const pending = router.request('/index.php');
+  router.close(); router.close();
+  await assert.rejects(pending, {name:'RouterError',code:'ABORT'});
+  assert.equal(router.active.size, 0);
+});
+
+test('al completar se retiran timer y listener de abort sin destruir el Agent', async t => {
+  const router = new Sagemcom({routerUrl:'https://192.168.0.1',timeoutSeconds:0.02}, {log:()=>{}});
+  t.after(() => router.close());
+  const destroy = t.mock.method(router.agent, 'destroy');
+  t.mock.method(tls, 'connect', () => socketFor(response('200 OK', [], 'ok'), []));
+  const controller = new AbortController();
+  assert.equal((await router.request('/index.php', {signal:controller.signal})).body, 'ok');
+  controller.abort();
+  await new Promise(resolve => setTimeout(resolve, 40));
+  assert.equal(getEventListeners(controller.signal, 'abort').length, 0);
+  assert.equal(router.active.size, 0);
+  assert.equal(destroy.mock.callCount(), 0);
 });
