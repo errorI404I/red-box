@@ -9,7 +9,7 @@ for (const scenario of ['timeout', 'abort', 'refused', 'closed', 'truncated', 't
     const { stdout, stderr } = await execute(process.execPath, [
       '--unhandled-rejections=strict',
       fileURLToPath(new URL('./fixtures/sagemcom-lifecycle.mjs', import.meta.url)), scenario
-    ], {timeout:5000});
+    ], {timeout:5000, env:Object.fromEntries(Object.entries(process.env).filter(([key]) => key !== 'NODE_TEST_CONTEXT'))});
     assert.match(stdout, new RegExp(`survived:${scenario}`));
     assert.doesNotMatch(stderr, /Unhandled|uncaught|Emitted 'error'/);
   });
