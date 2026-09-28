@@ -56,7 +56,9 @@ bash restart.sh
 
 El PID queda en `data/red-box.pid` y el log en `data/red-box.log`. No ejecutar `node server.js` y `start.sh` simultáneamente. `stop.sh` administra el proceso iniciado por `start.sh`; para ejecución en primer plano, Ctrl+C.
 
-Abrir `http://127.0.0.1:3000` en la TV Box. Para entrar desde otro equipo de confianza en la misma LAN, cambiar `host` a `0.0.0.0` en `config.json`, reiniciar y abrir `http://IP_DE_LA_TV_BOX:3000`. Esta primera versión no tiene autenticación del dashboard: los equipos con acceso pueden editar metadatos y enviar pruebas de Telegram. No publicar ese puerto en Internet.
+El servidor escucha por defecto en `0.0.0.0:8080`. Abrir `http://127.0.0.1:8080` en la TV Box o `http://IP_DE_LA_TV_BOX:8080` desde otro equipo de confianza en la misma LAN. Esta primera versión no tiene autenticación del dashboard: los equipos con acceso pueden editar metadatos y enviar pruebas de Telegram. No publicar ese puerto en Internet.
+
+El puerto se resuelve con prioridad `PORT` → `config.json` → `8080`. Por ejemplo, `PORT=9090 node server.js` inicia en el puerto 9090. También se puede definir `PORT` en `.env`. Si se cambia el puerto, usar ese valor en la URL del dashboard.
 
 `config.json`: polling 60 segundos después de finalizar cada ciclo, timeout 15 segundos por solicitud, umbral de router no disponible 3 ciclos, cooldown inicial 300 segundos. El cooldown también se puede editar en Configuración y queda persistido. El cooldown es por tipo de alerta y dispositivo; recuperación y desaparición tienen claves distintas. Alertas dentro del cooldown se omiten, no se encolan. Los intentos fallidos también se limitan. Nuevos dispositivos de la primera lectura se registran; solo se notifican si Telegram ya estaba validado.
 
