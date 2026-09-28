@@ -72,6 +72,8 @@ for(const failAt of ['tests','reinicio',null])test(`update ${failAt||'exitoso'} 
  const run=async(command,args,options)=>{
   calls.push([command,...args]);
   if(command==='git'&&args[0]==='status')return '';
+  if(command==='git'&&args[0]==='branch')return 'master';
+  if(command==='git'&&args[0]==='ls-remote')return `${target}\trefs/heads/master\n`;
   if(command==='git'&&args.includes('check-ignore'))return '.env\ndata/__red_box_probe__\n';
   if(command==='git'&&args[0]==='ls-files')return 'server.js\n';
   if(command==='git'&&args[0]==='ls-tree')return 'server.js\n';
@@ -115,13 +117,14 @@ test('update rechaza .env/data versionados antes de tocar el working tree',async
 test('update con Git real: candidato probado antes de reset y archivos privados conservados',async t=>{
  const root=project(t);const env={...process.env,GIT_AUTHOR_NAME:'Test',GIT_AUTHOR_EMAIL:'test@example.invalid',GIT_COMMITTER_NAME:'Test',GIT_COMMITTER_EMAIL:'test@example.invalid'};delete env.NODE_TEST_CONTEXT;
  const git=async args=>(await execute('git',args,{cwd:root,env})).stdout;
- await git(['init','-b','main']);
+ await git(['init','-b','master']);
  writeFileSync(join(root,'.gitignore'),'.env\ndata/\nnode_modules/\n');
  writeFileSync(join(root,'package.json'),JSON.stringify({name:'update-fixture',version:'1.0.0',scripts:{test:'node -e "process.exit(0)"'}}));
  mkdirSync(join(root,'scripts'));for(const file of ['start.sh','stop.sh'])writeFileSync(join(root,file),'#!/usr/bin/env bash\nexit 0\n');
  writeFileSync(join(root,'version.txt'),'old');await git(['add','.']);await git(['commit','-m','old']);const previous=(await git(['rev-parse','HEAD'])).trim();
  writeFileSync(join(root,'version.txt'),'new');await git(['add','.']);await git(['commit','-m','new']);const target=(await git(['rev-parse','HEAD'])).trim();
- await git(['reset','--hard',previous]);await git(['remote','add','origin',root]);await git(['update-ref','refs/heads/release',target]);await git(['config','remote.origin.fetch','+refs/heads/release:refs/remotes/origin/main']);
+ const remote=join(root,'data/origin.git');await git(['clone','--bare',root,remote]);
+ await git(['reset','--hard',previous]);await git(['remote','add','origin',remote]);
  writeFileSync(join(root,'.env'),'DO_NOT_DELETE');writeFileSync(join(root,'data/private'),'KEEP');
  await updateProject(root,{verifyProcess:()=>true,health:async()=>{}});
  const result=JSON.parse(readFileSync(join(root,'data/update-result.json')));

@@ -164,7 +164,7 @@ Se reutilizan TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID. El chat ID debe ser su valo
 
 - `/url`: devuelve la URL del proceso Cloudflare administrado, o informa que no hay túnel activo.
 - `/status`: estado breve de Red Box, router, cantidad de dispositivos y túnel.
-- `/update`: actualización desde origin/main, sin argumentos.
+- `/update`: actualización desde `origin/<rama-actual>`, sin argumentos y con fallback a `master`.
 
 No existe shell remota. `/exec`, `/shell`, `/bash`, `/cmd` y argumentos de `/update` no se ejecutan. No se envían tokens, .env, cookies, direcciones de dispositivos ni dumps de subprocessos.
 
@@ -172,7 +172,7 @@ El bot recibe mensajes mediante [getUpdates de Telegram](https://core.telegram.o
 
 ## Actualización remota desde GitHub
 
-Primero desplegar estos archivos en la TV Box y publicarlos en tu repositorio GitHub: el actualizador no crea ni publica un repositorio. Configurar `origin` y asegurar que `origin/main` sea la versión que querés instalar. Para repositorios privados, Git debe tener acceso no interactivo ya configurado; no colocar tokens en una URL versionada o en los scripts.
+Primero desplegar estos archivos en la TV Box y publicarlos en tu repositorio GitHub: el actualizador no crea ni publica un repositorio. Configurar `origin` y asegurar que la rama actual del checkout principal exista en ese remoto y contenga la versión que querés instalar. El updater obtiene el nombre mediante `git branch --show-current` y lo valida con Git; si la detección falla, devuelve un nombre inválido o el checkout está en detached HEAD, usa `master`. No acepta ramas desde Telegram ni parámetros externos. Para repositorios privados, Git debe tener acceso no interactivo ya configurado; no colocar tokens en una URL versionada o en los scripts.
 
 Requisitos:
 
@@ -184,7 +184,7 @@ Requisitos:
 Al enviar `/update`:
 
 1. El bot confirma `Actualizando Red Box...` y lanza un worker separado mediante `scripts/update.sh`, con argumentos fijos.
-2. Un lock impide dos actualizaciones simultáneas. Se ejecuta `git fetch origin` y se verifica `origin/main`.
+2. Un lock impide dos actualizaciones simultáneas. Se ejecuta `git fetch origin` y se verifica que `origin/<rama-detectada>` exista realmente en el remoto, sin confiar en referencias locales obsoletas. Si HEAD ya coincide con ese commit, informa que Red Box ya está actualizado y no instala dependencias, ejecuta tests ni reinicia.
 3. Se extrae el commit candidato en un directorio temporal dentro de data/. Allí se ejecuta `npm ci` si tiene package-lock.json; si no, `npm install --package-lock=false`. Luego se ejecuta `npm test`.
 4. Si falla instalación o tests, la app actual sigue funcionando. Solo se guarda un resultado de fallo por etapa; no se mandan logs crudos.
 5. Si pasa, se comprueba otra vez que no aparecieron cambios locales, se guarda un journal, se detiene solamente Red Box, se aplica `git reset --hard` al commit ya probado, se instalan las dependencias preparadas y se reinicia.
