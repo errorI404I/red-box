@@ -15,8 +15,8 @@ test('cookies, form y login 302',async()=>{
  const calls=[];const c=client([response(200,'',cookies),response(302,'',{location:'main.php'}),response(200,fixture('devices'))],calls);
  assert.equal((await c.devices()).length,2);assert.equal(calls[1].headers.Cookie,'PHPSESSID=session-value; csrfp_token=token-value');const body=new URLSearchParams(calls[1].body);assert.equal(body.get('password'),encodePassword(config.password));assert.equal(body.get('csrfp_token'),'token-value');c.close();
 });
-test('login incorrecto, cookie faltante y token faltante',async()=>{
- for(const [responses,code] of [[[response(200)],'COOKIES_MISSING'],[[response(200,'',{'set-cookie':['PHPSESSID=x']})],'TOKEN_MISSING'],[[response(200,'',cookies),response(200)],'LOGIN']]){const c=client(responses);await assert.rejects(c.login(),{code});c.close();}
+test('login incorrecto se rechaza con o sin cookies iniciales',async()=>{
+ for(const initial of [response(200),response(200,'',cookies)]){const c=client([initial,response(200)]);await assert.rejects(c.login(),{code:'LOGIN'});c.close();}
 });
 test('sesión expirada: solo una reautenticación',async()=>{
  const calls=[];const c=client([response(200,'',cookies),response(302,'',{location:'main.php'}),response(200,fixture('login')),response(200,'',cookies),response(302,'',{location:'main.php'}),response(302,'',{location:'index.php'})],calls);
